@@ -1,0 +1,11 @@
+{
+  "name": "CryptAlko Neural Mesh",
+  "description": "CryptAlko: 'الجسر الرقمي المحصن' - واجهة مستخدم لتطبيق تشفير متطور يعتمد على تقنية P2P، تظهر في وضع 'المصافحة الرقمية'. التصميم يدمج بين القوة الصناعية والذكاء الاصطناعي الفائق مع شبكة عصبية تفاعلية.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

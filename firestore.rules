@@ -1,0 +1,60 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global safety helper for IDs
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128;
+    }
+
+    // 1. Rooms Collection
+    match /rooms/{roomId} {
+      allow get: if isValidId(roomId);
+      allow create: if isValidId(roomId)
+        && request.resource.data.status is string
+        && request.resource.data.encryptionKey is string
+        && request.resource.data.cipherAlgorithm is string
+        && request.resource.data.derivationRounds is number
+        && request.resource.data.createdAt is number
+        && request.resource.data.peerConnected is bool
+        && request.resource.data.hostClientId is string;
+      
+      allow update, delete: if isValidId(roomId);
+    }
+
+    // 2. Messages Subcollection (Flattened for clean scope evaluation)
+    match /rooms/{roomId}/messages/{messageId} {
+      allow get: if isValidId(roomId) && isValidId(messageId);
+      allow list: if roomId is string && roomId != '';
+      allow create: if isValidId(roomId) && isValidId(messageId)
+        && request.resource.data.senderId is string
+        && request.resource.data.clientId is string
+        && request.resource.data.text is string
+        && request.resource.data.ciphertext is string
+        && request.resource.data.createdAt is number
+        && request.resource.data.time is string
+        && request.resource.data.isSystem is bool;
+      allow update, delete: if isValidId(roomId) && isValidId(messageId);
+    }
+
+    // 3. Calls Subcollection
+    match /rooms/{roomId}/calls/{callId} {
+      allow get: if isValidId(roomId) && isValidId(callId);
+      allow list: if roomId is string && roomId != '';
+      allow create: if isValidId(roomId) && isValidId(callId)
+        && request.resource.data.status is string
+        && request.resource.data.caller is string
+        && request.resource.data.timestamp is number;
+      
+      allow update, delete: if isValidId(roomId) && isValidId(callId);
+    }
+
+    // 4. Candidates Subcollection
+    match /rooms/{roomId}/calls/{callId}/candidates/{candidateId} {
+      allow get: if isValidId(roomId) && isValidId(callId) && isValidId(candidateId);
+      allow list: if roomId is string && callId is string;
+      allow create: if isValidId(roomId) && isValidId(callId) && isValidId(candidateId);
+      allow delete: if isValidId(roomId) && isValidId(callId) && isValidId(candidateId);
+    }
+  }
+}

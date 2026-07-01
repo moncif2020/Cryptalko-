@@ -1,0 +1,92 @@
+{
+  "entities": {
+    "Room": {
+      "title": "Room",
+      "description": "An encrypted chat room / enclave",
+      "type": "object",
+      "properties": {
+        "status": { "type": "string" },
+        "encryptionKey": { "type": "string" },
+        "cipherAlgorithm": { "type": "string" },
+        "derivationRounds": { "type": "number" },
+        "createdAt": { "type": "number" },
+        "peerConnected": { "type": "boolean" },
+        "hostClientId": { "type": "string" }
+      },
+      "required": ["status", "encryptionKey", "cipherAlgorithm", "derivationRounds", "createdAt", "peerConnected", "hostClientId"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "An encrypted message payload sent in a room",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "clientId": { "type": "string" },
+        "text": { "type": "string" },
+        "ciphertext": { "type": "string" },
+        "mediaType": { "type": "string" },
+        "mediaPayload": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "time": { "type": "string" },
+        "isSystem": { "type": "boolean" }
+      },
+      "required": ["senderId", "clientId", "text", "ciphertext", "createdAt", "time", "isSystem"]
+    },
+    "Call": {
+      "title": "Call",
+      "description": "Active WebRTC audio call session details",
+      "type": "object",
+      "properties": {
+        "status": { "type": "string" },
+        "caller": { "type": "string" },
+        "offer": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string" },
+            "sdp": { "type": "string" }
+          },
+          "required": ["type", "sdp"]
+        },
+        "answer": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string" },
+            "sdp": { "type": "string" }
+          },
+          "required": ["type", "sdp"]
+        },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["status", "timestamp"]
+    },
+    "IceCandidate": {
+      "title": "IceCandidate",
+      "description": "An ICE candidate for WebRTC connection establishment",
+      "type": "object",
+      "properties": {
+        "candidate": { "type": "string" },
+        "sender": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["candidate", "sender", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/rooms/{roomId}": {
+      "schema": { "$ref": "#/entities/Room" },
+      "description": "Decentralized room configuration"
+    },
+    "/rooms/{roomId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/Message" },
+      "description": "Subcollection of encrypted messages"
+    },
+    "/rooms/{roomId}/calls/{callId}": {
+      "schema": { "$ref": "#/entities/Call" },
+      "description": "Subcollection for active calls"
+    },
+    "/rooms/{roomId}/calls/{callId}/candidates/{candidateId}": {
+      "schema": { "$ref": "#/entities/IceCandidate" },
+      "description": "Subcollection for WebRTC ICE candidates"
+    }
+  }
+}
