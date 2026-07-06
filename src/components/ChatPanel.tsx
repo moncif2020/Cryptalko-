@@ -95,7 +95,7 @@ export const ChatPanel = ({
       initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
       className={cn(
-        "relative w-full max-w-3xl h-[70vh] border rounded-2xl overflow-hidden flex flex-col shadow-2xl transition-all duration-300",
+        "relative w-full max-w-full h-full border rounded-2xl overflow-hidden flex flex-col shadow-2xl transition-all duration-300",
         isDarkMode ? "bg-[#161616]/90 border-white/5" : "bg-white border-zinc-200"
       )}
     >

@@ -96,6 +96,63 @@ async function startServer() {
     return aiClient;
   };
 
+  // Secure API Route to fetch dynamic STUN/TURN configurations from Xirsys Cloud
+  app.get("/api/ice-servers", async (req, res) => {
+    try {
+      const ident = process.env.XIRSYS_IDENT;
+      const secret = process.env.XIRSYS_SECRET;
+      const channel = process.env.XIRSYS_CHANNEL || "channel009d58b6";
+
+      if (!ident || !secret) {
+        console.warn("[Xirsys Engine] Credentials not configured in secure store. Falling back to public STUN.");
+        return res.json({
+          iceServers: [
+            { urls: "stun:stun.l.google.com:19302" },
+            { urls: "stun:stun1.l.google.com:19302" },
+            { urls: "stun:stun2.l.google.com:19302" },
+            { urls: "stun:stun3.l.google.com:19302" }
+          ]
+        });
+      }
+
+      const auth = Buffer.from(`${ident}:${secret}`).toString("base64");
+      const url = `https://global.xirsys.net/_turn/${channel}`;
+
+      console.log(`[Xirsys Engine] Securely requesting ICE servers from Xirsys for channel: ${channel}`);
+      const response = await fetch(url, {
+        method: "PUT",
+        headers: {
+          "Authorization": `Basic ${auth}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ format: "urls" })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Xirsys API returned status: ${response.status}`);
+      }
+
+      const data = await response.json() as any;
+      if (data && data.s === "ok" && data.v && data.v.iceServers) {
+        console.log("[Xirsys Engine] Successfully retrieved STUN/TURN configurations.");
+        return res.json({ iceServers: data.v.iceServers });
+      } else {
+        throw new Error("Invalid response format received from Xirsys API");
+      }
+    } catch (err: any) {
+      console.error("[Xirsys Engine] Request failed:", err.message || err);
+      // Safe fallback to Google STUN servers
+      return res.json({
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          { urls: "stun:stun1.l.google.com:19302" },
+          { urls: "stun:stun2.l.google.com:19302" },
+          { urls: "stun:stun3.l.google.com:19302" }
+        ]
+      });
+    }
+  });
+
   // API Route for secure neural translation, transcription, and TTS generation
   app.post("/api/translate", async (req, res) => {
     try {

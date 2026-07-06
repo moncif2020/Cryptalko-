@@ -138,19 +138,19 @@ export const PrivacyDropdown = ({
         id="privacy-menu-btn"
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "px-3 py-2 rounded-xl border transition-all flex items-center space-x-2 uppercase tracking-wider font-black text-[10px] cursor-pointer shadow-md h-10",
+          "px-3 py-2 rounded-xl border transition-all flex items-center gap-2 uppercase tracking-wider font-black text-[10px] cursor-pointer h-10 shadow-[0_0_10px_rgba(255,107,0,0.15)]",
           isOpen
-            ? "bg-[#FF6B00] text-black border-[#FF6B00] hover:bg-orange-500"
+            ? "bg-[#FF6B00] text-black border-[#FF6B00] hover:bg-orange-500 shadow-[0_0_15px_rgba(255,107,0,0.4)]"
             : (isDarkMode 
-                ? "bg-[#161618] border-white/5 text-[#FF6B00] hover:border-[#FF6B00]/40 shadow-[0_0_15px_rgba(255,107,0,0.1)]" 
-                : "bg-white border-zinc-200 text-orange-600 hover:border-orange-500")
+                ? "bg-[#161618] border-[#FF6B00]/30 text-[#FF6B00] hover:bg-[#FF6B00]/5 hover:border-[#FF6B00] hover:shadow-[0_0_15px_rgba(255,107,0,0.3)]" 
+                : "bg-white border-[#FF6B00]/40 text-[#FF6B00] hover:bg-orange-50/50 hover:border-[#FF6B00] hover:shadow-[0_0_12px_rgba(255,107,0,0.25)]")
         )}
         title="قائمة الخصوصية والتحكم التكتيكي"
       >
-        <Menu size={14} className={cn("transition-transform duration-300", isOpen && "rotate-90")} />
-        <ShieldAlert size={12} className={cn(isOpen && "animate-pulse")} />
+        <Menu size={14} className={cn("transition-transform duration-300 text-current", isOpen && "rotate-90")} />
+        <ShieldAlert size={12} className={cn("text-current", isOpen && "animate-pulse")} />
         <span>PRIVACY MENU // قائمة الخصوصية</span>
-        <ChevronDown size={11} className={cn("transition-transform duration-200 ml-1", isOpen && "rotate-180")} />
+        <ChevronDown size={11} className={cn("transition-transform duration-200 text-current", isOpen && "rotate-180")} />
       </button>
 
       {/* Dropdown Panel */}

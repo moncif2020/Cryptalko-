@@ -43,7 +43,7 @@ service cloud.firestore {
       allow list: if roomId is string && roomId != '';
       allow create: if isValidId(roomId) && isValidId(callId)
         && request.resource.data.status is string
-        && request.resource.data.caller is string
+        && (!('caller' in request.resource.data) || request.resource.data.caller is string)
         && request.resource.data.timestamp is number;
       
       allow update, delete: if isValidId(roomId) && isValidId(callId);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Cpu, Bluetooth, Sun, Moon, ChevronDown, Check, Globe } from 'lucide-react';
+import { Cpu, Bluetooth, Sun, Moon, ChevronDown, Check, Globe, Terminal } from 'lucide-react';
 import { GLOBAL_LANGUAGES } from '../constants/languages';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -36,6 +36,8 @@ export interface HeaderProps {
   absolutePrivacy: boolean;
   setAbsolutePrivacy: (val: boolean) => void;
   addLog: (type: 'INFO' | 'SUCCESS' | 'SECURE' | 'ERROR' | 'WARN', message: string) => void;
+  showTerminal: boolean;
+  setShowTerminal: (val: boolean) => void;
 }
 
 export const Header = ({
@@ -62,6 +64,8 @@ export const Header = ({
   absolutePrivacy,
   setAbsolutePrivacy,
   addLog,
+  showTerminal,
+  setShowTerminal,
 }: HeaderProps) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -138,15 +142,19 @@ export const Header = ({
           type="button"
           onClick={() => setIsDarkMode(!isDarkMode)}
           className={cn(
-            "px-2.5 py-1.5 rounded-lg border transition-all flex items-center space-x-1.5 uppercase tracking-wider font-bold text-[9px] cursor-pointer h-9",
+            "px-2.5 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 uppercase tracking-wider font-bold text-[9px] cursor-pointer h-9 shadow-[0_0_10px_rgba(255,107,0,0.15)]",
             isDarkMode 
-              ? "bg-white/5 border-white/10 text-amber-400 hover:bg-white/10 hover:border-amber-400/40" 
-              : "bg-zinc-100 border-zinc-200 text-amber-600 hover:bg-zinc-200 hover:border-amber-600/40"
+              ? "bg-[#161618] border-[#FF6B00]/30 text-[#FF6B00] hover:bg-[#FF6B00]/5 hover:border-[#FF6B00] hover:shadow-[0_0_15px_rgba(255,107,0,0.3)]" 
+              : "bg-white border-[#FF6B00]/40 text-[#FF6B00] hover:bg-orange-50/50 hover:border-[#FF6B00] hover:shadow-[0_0_12px_rgba(255,107,0,0.25)]"
           )}
           title={isDarkMode ? "الوضع النهاري" : "الوضع الليلي"}
         >
-          {isDarkMode ? <Sun size={11} className="text-amber-400 animate-spin [animation-duration:8s]" /> : <Moon size={11} className="text-amber-600" />}
-          <span>{isDarkMode ? 'الوضع النهاري (Jour)' : 'الوضع الليلي (Nuit)'}</span>
+          {isDarkMode ? (
+            <Sun size={11} className="text-[#FF6B00] animate-spin [animation-duration:8s]" />
+          ) : (
+            <Moon size={11} className="text-[#FF6B00]" />
+          )}
+          <span>{isDarkMode ? 'الوضع النهاري (JOUR)' : 'الوضع الليلي (NUIT)'}</span>
         </button>
 
         {/* AI Translation Toggle Button */}
@@ -154,13 +162,17 @@ export const Header = ({
           type="button"
           onClick={() => setIsTranslationEnabled(!isTranslationEnabled)}
           className={cn(
-            "px-2.5 py-1.5 rounded-lg border transition-all flex items-center space-x-1.5 uppercase tracking-wider font-bold text-[9px] cursor-pointer h-9",
+            "px-2.5 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 uppercase tracking-wider font-bold text-[9px] cursor-pointer h-9 shadow-[0_0_10px_rgba(255,107,0,0.15)]",
             isTranslationEnabled 
-              ? (isDarkMode ? "bg-[#FFB300]/10 border-[#FFB300]/40 text-[#FFB300]" : "bg-amber-100 border-amber-300 text-amber-800")
-              : (isDarkMode ? "bg-white/5 border-white/10 text-white/40 hover:text-white" : "bg-zinc-100 border-zinc-200 text-zinc-600 hover:text-zinc-900")
+              ? (isDarkMode 
+                  ? "bg-[#FF6B00]/10 border-[#FF6B00] text-[#FF6B00] shadow-[0_0_15px_rgba(255,107,0,0.4)]" 
+                  : "bg-orange-50 border-[#FF6B00] text-[#FF6B00] shadow-[0_0_12px_rgba(255,107,0,0.35)]")
+              : (isDarkMode 
+                  ? "bg-[#161618] border-[#FF6B00]/30 text-[#FF6B00]/60 hover:text-[#FF6B00] hover:border-[#FF6B00] hover:shadow-[0_0_12px_rgba(255,107,0,0.25)]" 
+                  : "bg-white border-[#FF6B00]/40 text-[#FF6B00]/60 hover:text-[#FF6B00] hover:border-[#FF6B00] hover:shadow-[0_0_12px_rgba(255,107,0,0.25)]")
           )}
         >
-          <Cpu size={11} className={cn(isTranslationEnabled && "animate-spin [animation-duration:4s]")} />
+          <Cpu size={11} className={cn("text-[#FF6B00]", isTranslationEnabled && "animate-spin [animation-duration:4s]")} />
           <span>الترجمة الفورية: {isTranslationEnabled ? 'ON' : 'OFF'}</span>
         </button>
 
@@ -170,17 +182,17 @@ export const Header = ({
             type="button"
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             className={cn(
-              "flex items-center space-x-2 border rounded-lg px-3 h-9 transition-all cursor-pointer font-mono text-[9px] font-bold uppercase tracking-wider",
+              "flex items-center gap-1.5 border rounded-lg px-3 h-9 transition-all cursor-pointer font-mono text-[9px] font-bold uppercase tracking-wider shadow-[0_0_10px_rgba(255,107,0,0.15)]",
               isDarkMode 
-                ? "bg-white/5 border-white/10 text-white hover:bg-white/10 hover:border-amber-500/30" 
-                : "bg-zinc-100 border-zinc-200 text-zinc-800 hover:bg-zinc-200 hover:border-amber-600/30"
+                ? "bg-[#161618] border-[#FF6B00]/30 text-[#FF6B00] hover:bg-[#FF6B00]/5 hover:border-[#FF6B00] hover:shadow-[0_0_15px_rgba(255,107,0,0.3)]" 
+                : "bg-white border-[#FF6B00]/40 text-[#FF6B00] hover:bg-orange-50/50 hover:border-[#FF6B00] hover:shadow-[0_0_12px_rgba(255,107,0,0.25)]"
             )}
           >
-            <Globe size={11} className={isDarkMode ? "text-amber-400 animate-pulse" : "text-amber-600 animate-pulse"} />
-            <span className={cn(isDarkMode ? "text-white/80" : "text-zinc-700")}>
+            <Globe size={11} className="text-[#FF6B00] animate-pulse" />
+            <span className="text-current">
               {currentLanguageObj.name}
             </span>
-            <ChevronDown size={10} className={cn("transition-transform duration-200", isDropdownOpen && "rotate-180")} />
+            <ChevronDown size={10} className={cn("transition-transform duration-200 text-[#FF6B00]", isDropdownOpen && "rotate-180")} />
           </button>
 
           <AnimatePresence>
@@ -211,12 +223,12 @@ export const Header = ({
                       className={cn(
                         "w-full flex items-center justify-between px-3.5 py-2 text-[10px] font-mono transition-all text-right cursor-pointer",
                         isSelected 
-                          ? (isDarkMode ? "bg-[#FFB300]/10 text-[#FFB300] font-bold" : "bg-amber-50 text-amber-800 font-bold")
+                          ? (isDarkMode ? "bg-[#FF6B00]/10 text-[#FF6B00] font-bold" : "bg-orange-50 text-orange-800 font-bold")
                           : (isDarkMode ? "hover:bg-white/5 text-white/70 hover:text-white" : "hover:bg-zinc-50 text-zinc-600 hover:text-zinc-900")
                       )}
                     >
                       <span>{lang.name}</span>
-                      {isSelected && <Check size={11} className={isDarkMode ? "text-[#FFB300]" : "text-amber-600"} />}
+                      {isSelected && <Check size={11} className="text-[#FF6B00]" />}
                     </button>
                   );
                 })}
@@ -225,27 +237,49 @@ export const Header = ({
           </AnimatePresence>
         </div>
 
+        {/* Operations Console Toggle Button */}
+        <button
+          type="button"
+          onClick={() => setShowTerminal(!showTerminal)}
+          className={cn(
+            "px-2.5 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 uppercase tracking-wider font-bold text-[9px] cursor-pointer h-9 shadow-[0_0_10px_rgba(255,107,0,0.15)]",
+            showTerminal 
+              ? (isDarkMode 
+                  ? "bg-[#FF6B00]/10 border-[#FF6B00] text-[#FF6B00] shadow-[0_0_15px_rgba(255,107,0,0.4)]" 
+                  : "bg-orange-50 border-[#FF6B00] text-[#FF6B00] shadow-[0_0_12px_rgba(255,107,0,0.35)]")
+              : (isDarkMode 
+                  ? "bg-[#161618] border-[#FF6B00]/30 text-[#FF6B00]/60 hover:text-[#FF6B00] hover:border-[#FF6B00] hover:shadow-[0_0_12px_rgba(255,107,0,0.25)]" 
+                  : "bg-white border-[#FF6B00]/40 text-[#FF6B00]/60 hover:text-[#FF6B00] hover:border-[#FF6B00] hover:shadow-[0_0_12px_rgba(255,107,0,0.25)]")
+          )}
+          title="سجل العمليات والتحكم التكتيكي"
+        >
+          <Terminal size={11} className={cn("text-[#FF6B00]", showTerminal && "animate-pulse")} />
+          <span>الكونسول: {showTerminal ? 'ON' : 'OFF'}</span>
+        </button>
+
         {/* Bluetooth Activation Button */}
         <button
           type="button"
           onClick={handleToggleBluetooth}
           className={cn(
-            "px-2.5 py-1.5 rounded-lg border transition-all flex items-center space-x-1.5 uppercase tracking-wider font-black text-[9px] cursor-pointer shadow-sm h-9",
+            "px-2.5 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 uppercase tracking-wider font-black text-[9px] cursor-pointer h-9 shadow-[0_0_10px_rgba(255,107,0,0.15)]",
             isBluetoothMode 
-              ? "bg-amber-500 text-black border-amber-600 hover:bg-amber-400" 
-              : (isDarkMode ? "bg-[#121212] border-white/10 text-[#FFB300] hover:border-[#FFB300]/40" : "bg-white border-zinc-200 text-amber-600 hover:border-amber-400")
+              ? "bg-[#FF6B00] text-black border-[#FF6B00] hover:bg-orange-500 shadow-[0_0_15px_rgba(255,107,0,0.4)]" 
+              : (isDarkMode 
+                  ? "bg-[#161618] border-[#FF6B00]/30 text-[#FF6B00] hover:bg-[#FF6B00]/5 hover:border-[#FF6B00] hover:shadow-[0_0_15px_rgba(255,107,0,0.3)]" 
+                  : "bg-white border-[#FF6B00]/40 text-[#FF6B00] hover:bg-orange-50/50 hover:border-[#FF6B00] hover:shadow-[0_0_12px_rgba(255,107,0,0.25)]")
           )}
         >
-          <Bluetooth size={11} className={cn(isBluetoothMode && "animate-bounce")} />
+          <Bluetooth size={11} className={cn("text-current", isBluetoothMode && "animate-bounce")} />
           <span>{isBluetoothMode ? 'DISABLE MESH' : 'ACTIVATE BLE MESH'}</span>
         </button>
 
         {!isOnline && (
           <div className={cn(
-            "flex items-center space-x-1.5 px-3 py-1.5 border rounded-lg text-[9px] font-mono animate-pulse uppercase tracking-widest font-semibold h-9",
-            isDarkMode ? "bg-amber-500/10 border-amber-500/30 text-amber-500" : "bg-amber-50 border-amber-200 text-amber-700"
+            "flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-[9px] font-mono animate-pulse uppercase tracking-widest font-semibold h-9 shadow-[0_0_10px_rgba(255,107,0,0.1)]",
+            isDarkMode ? "bg-[#FF6B00]/10 border-[#FF6B00]/30 text-[#FF6B00]" : "bg-orange-50 border-[#FF6B00]/30 text-orange-700"
           )}>
-            <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping" />
+            <span className="w-1.5 h-1.5 bg-[#FF6B00] rounded-full animate-ping" />
             <span>OFFLINE MODE // دون اتصال</span>
           </div>
         )}

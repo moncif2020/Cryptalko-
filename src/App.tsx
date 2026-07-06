@@ -14,6 +14,7 @@ import { useFirebaseBridge } from './hooks/useFirebaseBridge';
 import { encryptString } from './services/crypto';
 import { bluetoothMesh } from './services/bluetooth';
 import ErrorBoundary from './components/ErrorBoundary';
+
 // Modular Components
 import { SecureAudioPlayer } from './components/SecureAudioPlayer';
 import { NeuralMesh } from './components/NeuralMesh';
@@ -28,44 +29,14 @@ import { RoomControls } from './components/RoomControls';
 import { useAiTranslation } from './hooks/useAiTranslation';
 import { useAudioRecorder } from './hooks/useAudioRecorder';
 import { useWebRtcCall } from './hooks/useWebRtcCall';
+import { useSecurityPolicies } from './hooks/useSecurityPolicies';
+
+// Services
+import { compressImage } from './services/imageCompressor';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
-
-// --- Utilities & Multimedia Helpers ---
-const compressImage = (dataUrl: string, maxWidth = 400, maxHeight = 400, quality = 0.6): Promise<string> => {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.src = dataUrl;
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      let width = img.width;
-      let height = img.height;
-      if (width > height) {
-        if (width > maxWidth) {
-          height = Math.round((height * maxWidth) / width);
-          width = maxWidth;
-        }
-      } else {
-        if (height > maxHeight) {
-          width = Math.round((width * maxHeight) / height);
-          height = maxHeight;
-        }
-      }
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
-      } else {
-        resolve(dataUrl);
-      }
-    };
-    img.onerror = () => resolve(dataUrl);
-  });
-};
 
 export default function App() {
   const {
@@ -126,62 +97,6 @@ export default function App() {
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
 
-  // --- Privacy Enclave Advanced States ---
-  const [currentTime, setCurrentTime] = useState<number>(Date.now());
-  const [isBlurred, setIsBlurred] = useState<boolean>(false);
-
-  // Tick current time for auto-delete reactive UI update
-  useEffect(() => {
-    if (!autoDelete) return;
-    const interval = setInterval(() => {
-      setCurrentTime(Date.now());
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [autoDelete]);
-
-  // Visual Shield Tab obscuring & window blur handler
-  useEffect(() => {
-    if (!visualShield) {
-      setIsBlurred(false);
-      return;
-    }
-    const handleBlur = () => setIsBlurred(true);
-    const handleFocus = () => setIsBlurred(false);
-    const handleVisibilityChange = () => {
-      if (document.hidden) setIsBlurred(true);
-      else setIsBlurred(false);
-    };
-    window.addEventListener('blur', handleBlur);
-    window.addEventListener('focus', handleFocus);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      window.removeEventListener('blur', handleBlur);
-      window.removeEventListener('focus', handleFocus);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [visualShield]);
-
-  // Block Copy/Paste clipboard security hook
-  useEffect(() => {
-    if (!blockCopyPaste) return;
-    const preventAll = (e: Event) => {
-      e.preventDefault();
-      addLog('WARN', 'أمن الحافظة // Clipboard transfer attempt blocked by Enclave protocol.');
-    };
-    document.addEventListener('copy', preventAll);
-    document.addEventListener('cut', preventAll);
-    document.addEventListener('paste', preventAll);
-    document.addEventListener('contextmenu', preventAll);
-    document.addEventListener('selectstart', preventAll);
-    return () => {
-      document.removeEventListener('copy', preventAll);
-      document.removeEventListener('cut', preventAll);
-      document.removeEventListener('paste', preventAll);
-      document.removeEventListener('contextmenu', preventAll);
-      document.removeEventListener('selectstart', preventAll);
-    };
-  }, [blockCopyPaste, addLog]);
-
   // --- AI Neural Translation Custom Hook ---
   const {
     isTranslationEnabled,
@@ -191,13 +106,16 @@ export default function App() {
     translations,
   } = useAiTranslation({ chatMessages, addLog });
 
-  // Absolute Privacy AI isolation enforcement
-  useEffect(() => {
-    if (absolutePrivacy && isTranslationEnabled) {
-      setIsTranslationEnabled(false);
-      addLog('WARN', 'الأمن المطلق // AI translation forced OFF due to Absolute Privacy settings.');
-    }
-  }, [absolutePrivacy, isTranslationEnabled, setIsTranslationEnabled, addLog]);
+  // --- Security Enclave Policies (Visual Shield, Copy/Paste, Auto-Delete Reactive Ticks) ---
+  const { currentTime, isBlurred } = useSecurityPolicies({
+    autoDelete,
+    visualShield,
+    blockCopyPaste,
+    absolutePrivacy,
+    isTranslationEnabled,
+    setIsTranslationEnabled,
+    addLog,
+  });
 
   // --- Audio Recording Custom Hook ---
   const {
@@ -425,6 +343,8 @@ export default function App() {
           absolutePrivacy={absolutePrivacy}
           setAbsolutePrivacy={setAbsolutePrivacy}
           addLog={addLog}
+          showTerminal={showTerminal}
+          setShowTerminal={setShowTerminal}
         />
 
         {/* Content Body */}
@@ -469,127 +389,252 @@ export default function App() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0, scale: 1.1 }}
                 transition={{ duration: 1 }}
-                className="relative w-full max-w-xl py-6 px-4 flex flex-col items-center"
+                className="relative w-full max-w-xl md:max-w-5xl py-6 px-4 flex flex-col md:flex-row items-center md:items-stretch justify-center gap-8 md:gap-12"
               >
-                <div className="relative flex flex-col items-center w-full">
-                  <NeuralMesh isLocked={status === 'locked'} value={getScanUrl() || "CRYPTALKO_SECURE_BRIDGE_P2P"} />
-                  
-                  {/* Interactive padlock button trigger */}
-                  <div 
-                    onClick={() => {
-                      if (status === 'idle') {
-                        startHandshake(true);
-                      }
-                    }}
-                    className={cn(
-                      "absolute inset-0 flex items-center justify-center transition-all duration-300",
-                      status === 'idle' 
-                        ? "cursor-pointer pointer-events-auto hover:scale-[1.03] active:scale-[0.98] group/padlock" 
-                        : "pointer-events-none"
-                    )}
-                  >
-                    <SecurePadlock isLocked={status === 'locked'} status={status} isDarkMode={isDarkMode} />
+                {/* Standby QR & Interactive Padlock (Left Column) */}
+                <div className="flex-1 flex flex-col items-center justify-center max-w-md w-full">
+                  <div className="relative flex flex-col items-center w-full">
+                    <NeuralMesh isLocked={status === 'locked'} value={getScanUrl() || "CRYPTALKO_SECURE_BRIDGE_P2P"} />
+                    
+                    {/* Interactive padlock button trigger */}
+                    <div 
+                      onClick={() => {
+                        if (status === 'idle') {
+                          startHandshake(true);
+                        }
+                      }}
+                      className={cn(
+                        "absolute inset-0 flex items-center justify-center transition-all duration-300",
+                        status === 'idle' 
+                          ? "cursor-pointer pointer-events-auto hover:scale-[1.03] active:scale-[0.98] group/padlock" 
+                          : "pointer-events-none"
+                      )}
+                    >
+                      <SecurePadlock isLocked={status === 'locked'} status={status} isDarkMode={isDarkMode} />
+                    </div>
+
+                    <motion.div 
+                      initial={{ opacity: 0, y: 15 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mt-8 text-center"
+                    >
+                      <p className={cn(
+                        "text-xs font-mono tracking-[0.25em] uppercase",
+                        isDarkMode ? "text-white/50" : "text-zinc-500"
+                      )}>
+                        {status === 'idle' 
+                          ? 'Bridge Offline // Tap Padlock to Host' 
+                          : status === 'searching' 
+                          ? 'Establishing P2P Secure Handshake...' 
+                          : 'Tunnel Cryptography Verified'}
+                      </p>
+                      <div className="mt-4 flex items-center justify-center space-x-2">
+                         <div className={cn(
+                           "w-1.5 h-1.5 rounded-full animate-pulse",
+                           status === 'idle' ? "bg-zinc-500" : status === 'searching' ? "bg-[#FF6B00]" : "bg-[#FFB300]"
+                         )} />
+                         <span className={cn(
+                           "text-[10px] font-mono tracking-widest",
+                           isDarkMode ? "text-white/40" : "text-zinc-500"
+                         )}>
+                           {status === 'idle' 
+                             ? 'SECURE_TUNNEL_STANDBY' 
+                             : status === 'searching' 
+                             ? 'SOLVING_CRYPTOGRAPHIC_DIFFICULTY' 
+                             : 'ENCRYPTION_ACTIVE_AES256'}
+                         </span>
+                      </div>
+                    </motion.div>
                   </div>
 
-                  <motion.div 
-                    initial={{ opacity: 0, y: 15 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mt-8 text-center"
+                  {/* Concept Art Button */}
+                  <motion.button
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    onClick={generateConceptArt}
+                    disabled={isGenerating}
+                    className="mt-8 flex items-center space-x-2.5 px-4 py-2.5 rounded-xl border border-[#FF6B00]/20 bg-black/40 text-[#FF6B00] hover:bg-[#FF6B00]/10 hover:border-[#FF6B00]/40 transition-all group cursor-pointer"
                   >
-                    <p className={cn(
-                      "text-xs font-mono tracking-[0.25em] uppercase",
-                      isDarkMode ? "text-white/50" : "text-zinc-500"
-                    )}>
-                      {status === 'idle' 
-                        ? 'Bridge Offline // Tap Padlock to Host' 
-                        : status === 'searching' 
-                        ? 'Establishing P2P Secure Handshake...' 
-                        : 'Tunnel Cryptography Verified'}
-                    </p>
-                    <div className="mt-4 flex items-center justify-center space-x-2">
-                       <div className={cn(
-                         "w-1.5 h-1.5 rounded-full animate-pulse",
-                         status === 'idle' ? "bg-zinc-500" : status === 'searching' ? "bg-[#FF6B00]" : "bg-[#FFB300]"
-                       )} />
-                       <span className={cn(
-                         "text-[10px] font-mono tracking-widest",
-                         isDarkMode ? "text-white/40" : "text-zinc-500"
-                       )}>
-                         {status === 'idle' 
-                           ? 'SECURE_TUNNEL_STANDBY' 
-                           : status === 'searching' 
-                           ? 'SOLVING_CRYPTOGRAPHIC_DIFFICULTY' 
-                           : 'ENCRYPTION_ACTIVE_AES256'}
-                       </span>
-                    </div>
-                  </motion.div>
+                    {isGenerating ? (
+                      <Loader2 className="animate-spin" size={14} />
+                    ) : (
+                      <ImageIcon size={14} className="group-hover:scale-110 transition-transform" />
+                    )}
+                    <span className="text-[10px] font-mono uppercase tracking-widest font-bold">
+                      {isGenerating ? 'Synthesizing...' : 'View 8K Concept Art'}
+                    </span>
+                  </motion.button>
                 </div>
 
-                {/* --- Manual Join & Active Handshake Option Components --- */}
-                <RoomControls 
-                  status={status}
-                  role={role}
-                  roomId={roomId}
-                  addLog={addLog}
-                  joinRoom={joinRoom}
-                  getScanUrl={getScanUrl}
-                  setIsScanning={setIsScanning}
-                  isDarkMode={isDarkMode}
-                />
-
-                {/* Concept Art Button */}
-                <motion.button
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  onClick={generateConceptArt}
-                  disabled={isGenerating}
-                  className="mt-8 flex items-center space-x-2.5 px-4 py-2.5 rounded-xl border border-[#FF6B00]/20 bg-black/40 text-[#FF6B00] hover:bg-[#FF6B00]/10 hover:border-[#FF6B00]/40 transition-all group cursor-pointer"
-                >
-                  {isGenerating ? (
-                    <Loader2 className="animate-spin" size={14} />
-                  ) : (
-                    <ImageIcon size={14} className="group-hover:scale-110 transition-transform" />
-                  )}
-                  <span className="text-[10px] font-mono uppercase tracking-widest font-bold">
-                    {isGenerating ? 'Synthesizing...' : 'View 8K Concept Art'}
-                  </span>
-                </motion.button>
+                {/* Secure Join / Setup (Right Column on Desktop, separated by a line) */}
+                <div className={cn(
+                  "flex-1 flex flex-col justify-center max-w-md w-full border-t md:border-t-0 md:border-l pt-8 md:pt-0 md:pl-8",
+                  isDarkMode ? "border-white/5" : "border-zinc-200"
+                )}>
+                  <RoomControls 
+                    status={status}
+                    role={role}
+                    roomId={roomId}
+                    addLog={addLog}
+                    joinRoom={joinRoom}
+                    getScanUrl={getScanUrl}
+                    setIsScanning={setIsScanning}
+                    isDarkMode={isDarkMode}
+                  />
+                </div>
               </motion.div>
             ) : (
-              <ChatPanel 
-                role={role}
-                roomId={roomId}
-                chatMessages={filteredChatMessages}
-                isOnline={isOnline}
-                isTranslationEnabled={isTranslationEnabled}
-                targetLanguage={targetLanguage}
-                translations={translations}
-                isRecording={isRecording}
-                recordingDuration={recordingDuration}
-                startAudioRecording={startAudioRecording}
-                stopAudioRecording={stopAudioRecording}
-                handleImageSelect={handleImageSelect}
-                inputMessage={inputMessage}
-                setInputMessage={setInputMessage}
-                handleSendMessage={handleSendMessage}
-                
-                // Pass WebRTC call props
-                callStatus={callStatus}
-                isMuted={isMuted}
-                callDuration={callDuration}
-                isSimulatedCall={isSimulatedCall}
-                startCall={startCall}
-                acceptCall={acceptCall}
-                declineCall={declineCall}
-                endCall={endCall}
-                toggleMute={toggleMute}
-                isDarkMode={isDarkMode}
-                readReceipts={readReceipts}
-                
-                // Pass new props
-                leaveAndDestroyRoom={leaveAndDestroyRoom}
-                secondsRemaining={secondsRemaining}
-              />
+              <div className="w-full max-w-6xl flex flex-col md:flex-row gap-6 items-stretch h-[70vh]">
+                {/* Primary Chat Viewport */}
+                <div className="flex-1 min-w-0 h-full">
+                  <ChatPanel 
+                    role={role}
+                    roomId={roomId}
+                    chatMessages={filteredChatMessages}
+                    isOnline={isOnline}
+                    isTranslationEnabled={isTranslationEnabled}
+                    targetLanguage={targetLanguage}
+                    translations={translations}
+                    isRecording={isRecording}
+                    recordingDuration={recordingDuration}
+                    startAudioRecording={startAudioRecording}
+                    stopAudioRecording={stopAudioRecording}
+                    handleImageSelect={handleImageSelect}
+                    inputMessage={inputMessage}
+                    setInputMessage={setInputMessage}
+                    handleSendMessage={handleSendMessage}
+                    
+                    // Pass WebRTC call props
+                    callStatus={callStatus}
+                    isMuted={isMuted}
+                    callDuration={callDuration}
+                    isSimulatedCall={isSimulatedCall}
+                    startCall={startCall}
+                    acceptCall={acceptCall}
+                    declineCall={declineCall}
+                    endCall={endCall}
+                    toggleMute={toggleMute}
+                    isDarkMode={isDarkMode}
+                    readReceipts={readReceipts}
+                    
+                    // Pass new props
+                    leaveAndDestroyRoom={leaveAndDestroyRoom}
+                    secondsRemaining={secondsRemaining}
+                  />
+                </div>
+
+                {/* Desktop-Only Secondary Secure Control Enclave Panel */}
+                <div className={cn(
+                  "hidden md:flex w-[320px] flex-col rounded-2xl border overflow-hidden shrink-0 shadow-2xl transition-all duration-300 font-mono p-5 space-y-5",
+                  isDarkMode 
+                    ? "bg-[#161618] border-white/5 text-white" 
+                    : "bg-white border-zinc-200 text-zinc-800"
+                )}>
+                  <div className={cn(
+                    "border-b pb-3",
+                    isDarkMode ? "border-white/5" : "border-zinc-200"
+                  )}>
+                    <h3 className="text-xs font-bold text-[#FF6B00] tracking-wider uppercase flex items-center gap-1.5">
+                      <ShieldCheck size={14} />
+                      Enclave Monitor // مراقب الغرفة
+                    </h3>
+                    <p className={cn(
+                      "text-[9px] mt-1",
+                      isDarkMode ? "text-white/40" : "text-zinc-500"
+                    )}>REAL-TIME SECURE METRICS</p>
+                  </div>
+
+                  {/* Micro Neural Mesh / QR */}
+                  <div className={cn(
+                    "flex flex-col items-center justify-center p-3 rounded-xl border relative group",
+                    isDarkMode ? "bg-black/40 border-white/5" : "bg-zinc-50 border-zinc-200"
+                  )}>
+                    <NeuralMesh isLocked={status === 'locked'} value={getScanUrl() || "CRYPTALKO_SECURE_BRIDGE_P2P"} />
+                    <span className={cn(
+                      "text-[8px] tracking-widest mt-2",
+                      isDarkMode ? "text-white/30" : "text-zinc-500"
+                    )}>PEER_DISCOVERY_MESH</span>
+                  </div>
+
+                  {/* Secure Parameters Status */}
+                  <div className="space-y-2.5 text-[10px]">
+                    <div className={cn("flex justify-between items-center py-1.5 border-b", isDarkMode ? "border-white/5" : "border-zinc-100")}>
+                      <span className={isDarkMode ? "text-white/40" : "text-zinc-500"}>ROOM CODE</span>
+                      <span className="text-[#FF6B00] font-bold">{roomId}</span>
+                    </div>
+                    <div className={cn("flex justify-between items-center py-1.5 border-b", isDarkMode ? "border-white/5" : "border-zinc-100")}>
+                      <span className={isDarkMode ? "text-white/40" : "text-zinc-500"}>CIPHER STREAM</span>
+                      <span className={isDarkMode ? "text-white/80 font-bold" : "text-zinc-800 font-bold"}>{cipherAlgorithm}</span>
+                    </div>
+                    <div className={cn("flex justify-between items-center py-1.5 border-b", isDarkMode ? "border-white/5" : "border-zinc-100")}>
+                      <span className={isDarkMode ? "text-white/40" : "text-zinc-500"}>KDF STRENGTH</span>
+                      <span className={isDarkMode ? "text-white/80" : "text-zinc-800"}>{derivationRounds.toLocaleString()} iterations</span>
+                    </div>
+                    <div className={cn("flex justify-between items-center py-1.5 border-b", isDarkMode ? "border-white/5" : "border-zinc-100")}>
+                      <span className={isDarkMode ? "text-white/40" : "text-zinc-500"}>BLE MESH</span>
+                      <span className={isBluetoothMode ? "text-green-500 font-bold" : (isDarkMode ? "text-white/30" : "text-zinc-400")}>
+                        {isBluetoothMode ? 'ACTIVE' : 'INACTIVE'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Security Policy Flags */}
+                  <div className="space-y-1.5">
+                    <h4 className={cn(
+                      "text-[9px] uppercase tracking-widest font-bold mb-2",
+                      isDarkMode ? "text-white/30" : "text-zinc-500"
+                    )}>ACTIVE POLICIES</h4>
+                    <div className="grid grid-cols-2 gap-1.5 text-[8px] uppercase tracking-wider font-bold">
+                      <div className={cn(
+                        "p-1.5 rounded border text-center transition-all",
+                        autoDelete 
+                          ? (isDarkMode ? "border-green-500/30 bg-green-500/10 text-green-400" : "border-green-500/30 bg-green-50 text-green-700") 
+                          : (isDarkMode ? "border-white/5 bg-white/5 text-white/30" : "border-zinc-100 bg-zinc-50 text-zinc-400")
+                      )}>
+                        AUTO-PURGE
+                      </div>
+                      <div className={cn(
+                        "p-1.5 rounded border text-center transition-all",
+                        visualShield 
+                          ? (isDarkMode ? "border-green-500/30 bg-green-500/10 text-green-400" : "border-green-500/30 bg-green-50 text-green-700") 
+                          : (isDarkMode ? "border-white/5 bg-white/5 text-white/30" : "border-zinc-100 bg-zinc-50 text-zinc-400")
+                      )}>
+                        SHIELD
+                      </div>
+                      <div className={cn(
+                        "p-1.5 rounded border text-center transition-all",
+                        blockCopyPaste 
+                          ? (isDarkMode ? "border-green-500/30 bg-green-500/10 text-green-400" : "border-green-500/30 bg-green-50 text-green-700") 
+                          : (isDarkMode ? "border-white/5 bg-white/5 text-white/30" : "border-zinc-100 bg-zinc-50 text-zinc-400")
+                      )}>
+                        ANTI-COPY
+                      </div>
+                      <div className={cn(
+                        "p-1.5 rounded border text-center transition-all",
+                        absolutePrivacy 
+                          ? (isDarkMode ? "border-green-500/30 bg-green-500/10 text-green-400" : "border-green-500/30 bg-green-50 text-green-700") 
+                          : (isDarkMode ? "border-white/5 bg-white/5 text-white/30" : "border-zinc-100 bg-zinc-50 text-zinc-400")
+                      )}>
+                        ISOLATED-AI
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Encryption Key Fingerprint */}
+                  <div className={cn(
+                    "p-2.5 rounded-lg border text-[9px] transition-all",
+                    isDarkMode ? "bg-black/30 border-white/5" : "bg-zinc-50 border-zinc-200"
+                  )}>
+                    <div className={isDarkMode ? "text-white/40 uppercase mb-1" : "text-zinc-500 uppercase mb-1"}>Tunnel Fingerprint (SHA-256)</div>
+                    <div className={cn(
+                      "font-mono break-all select-all selection:bg-emerald-500/20",
+                      isDarkMode ? "text-emerald-400" : "text-emerald-700"
+                    )}>
+                      {encryptionKey ? encryptString(encryptionKey.slice(0, 8), 'f7c8d9e0', cipherAlgorithm) : 'TUNNEL_STANDBY'}...
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
           </AnimatePresence>
         </div>
@@ -613,16 +658,6 @@ export default function App() {
         startHandshake={startHandshake}
         isDarkMode={isDarkMode}
       />
-
-      {/* Settings / Console Drawer Toggle Action Overlay Trigger button */}
-      <button 
-        type="button"
-        onClick={() => setShowTerminal(!showTerminal)}
-        className="fixed bottom-6 right-6 z-30 p-4 bg-zinc-900 border border-white/10 text-white/70 hover:text-white rounded-full hover:border-[#FF6B00]/40 hover:bg-black/90 cursor-pointer shadow-xl transition-all group"
-        title="Toggle Operations Console"
-      >
-        <Terminal size={20} className="group-hover:scale-110 group-hover:text-[#FF6B00] transition-all" />
-      </button>
 
       {/* --- camera based QR code scanner --- */}
       <AnimatePresence>
@@ -678,7 +713,7 @@ export default function App() {
             </h2>
             <p className="text-[10px] text-white/60 max-w-sm leading-relaxed mb-6 px-4" style={{ direction: 'rtl' }}>
               {exitReason === 'timeout'
-                ? 'مرت 60 ثانية على إرسال الرسالة دون رد من الطرف الآخر. تم تدمير الغرفة نهائياً من قاعدة البيانات وطرد الطرفين وتطهير كامل الملفات المتبادلة.'
+                ? 'مرت 5 دقائق على إرسال الرسالة دون رد من الطرف الآخر. تم تدمير الغرفة نهائياً من قاعدة البيانات وطرد الطرفين وتطهير كامل الملفات المتبادلة.'
                 : 'خرج الطرف الآخر من الغرفة أو أغلقت الجلسة. تم الخروج تلقائياً وتطهير المحادثات والملفات المتبادلة بالكامل وحذف الغرفة لحماية خصوصيتك.'}
             </p>
             <button

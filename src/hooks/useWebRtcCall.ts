@@ -25,13 +25,38 @@ export function useWebRtcCall({ roomId, role, addLog, isOnline }: UseWebRtcCallP
   const unsubCallRef = useRef<(() => void) | null>(null);
   const unsubIceRef = useRef<(() => void) | null>(null);
 
-  // STUN Servers for NAT Traversal
-  const iceServers = [
+  const statusRef = useRef<CallStatus>('idle');
+  useEffect(() => {
+    statusRef.current = callStatus;
+  }, [callStatus]);
+
+  // STUN/TURN Servers for NAT Traversal (Default public fallbacks)
+  const [iceServers, setIceServers] = useState<any[]>([
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
     { urls: 'stun:stun3.l.google.com:19302' }
-  ];
+  ]);
+
+  // Fetch dynamic TURN/STUN configuration from server-side proxy on initialization
+  useEffect(() => {
+    if (isOnline) {
+      addLog('INFO', 'جاري جلب خوادم STUN/TURN الآمنة لتخطي جدران حماية الهواتف (NAT)...');
+      fetch('/api/ice-servers')
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.iceServers) {
+            const servers = Array.isArray(data.iceServers) ? data.iceServers : [data.iceServers];
+            setIceServers(servers);
+            addLog('SUCCESS', 'تم استيراد تهيئة القناة السحابية (TURN/STUN) لضمان اتصال الهواتف بنجاح.');
+          }
+        })
+        .catch(err => {
+          console.warn('Failed to fetch dynamic Xirsys ICE servers, using local defaults:', err);
+          addLog('WARN', 'فشل تحميل خوادم TURN الاحترافية. سيتم استخدام الخوادم العامة (STUN) كبديل.');
+        });
+    }
+  }, [isOnline, addLog]);
 
   // Initialize Remote Audio Player in DOM safely
   useEffect(() => {
@@ -110,7 +135,7 @@ export function useWebRtcCall({ roomId, role, addLog, isOnline }: UseWebRtcCallP
     if (shouldWriteToDb && isOnline && !isSimulatedCall) {
       try {
         const callRef = doc(db, 'rooms', roomId, 'calls', 'current');
-        await setDoc(callRef, { status: 'ended', timestamp: Date.now() });
+        await updateDoc(callRef, { status: 'ended', timestamp: Date.now() });
         addLog('WARN', 'تم إنهاء الاتصال الصوتي وإغلاق نفق التشفير.');
       } catch (err) {
         console.error('Failed to end call in DB:', err);
@@ -171,12 +196,16 @@ export function useWebRtcCall({ roomId, role, addLog, isOnline }: UseWebRtcCallP
 
     // Handle connection state changes
     pc.onconnectionstatechange = () => {
-      addLog('INFO', `حالة الاتصال العصبية: ${pc.connectionState}`);
-      if (pc.connectionState === 'connected') {
+      const state = pc.connectionState;
+      addLog('INFO', `حالة الاتصال العصبية: ${state}`);
+      if (state === 'connected') {
         setCallStatus('connected');
         addLog('SUCCESS', 'اكتمل نفق الاتصال الهاتفي المشفر بالكامل E2EE!');
-      } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-        endCall(false);
+      } else if (state === 'failed') {
+        addLog('ERROR', 'فشل الاتصال الهاتفي المشفر بسبب انقطاع القناة.');
+        endCall(true);
+      } else if (state === 'disconnected') {
+        addLog('WARN', 'تم قطع الاتصال مؤقتاً، جاري محاولة إعادة الاتصال...');
       }
     };
 
@@ -251,7 +280,7 @@ export function useWebRtcCall({ roomId, role, addLog, isOnline }: UseWebRtcCallP
         return;
       }
 
-      if (data.status === 'answered' && data.answer && callStatus !== 'connected') {
+      if (data.status === 'answered' && data.answer && statusRef.current !== 'connected' && statusRef.current !== 'connecting') {
         if (pc.signalingState === 'closed') return;
         addLog('INFO', 'تم استلام مفاتيح فك التشفير من الطرف الثاني. تفعيل القناة...');
         setCallStatus('connecting');
@@ -332,7 +361,7 @@ export function useWebRtcCall({ roomId, role, addLog, isOnline }: UseWebRtcCallP
     if (isOnline && !isSimulatedCall) {
       try {
         const callRef = doc(db, 'rooms', roomId, 'calls', 'current');
-        await setDoc(callRef, { status: 'ended', timestamp: Date.now() });
+        await updateDoc(callRef, { status: 'ended', timestamp: Date.now() });
       } catch (err) {
         console.error('Error declining call:', err);
       }

@@ -1,6 +1,69 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <script>
+      // Prevent browser extensions or wallet libraries from crashing the app when redefining window.ethereum or window.keplr
+      (function() {
+        const originalDefineProperty = Object.defineProperty;
+
+        // Pre-define configurable getter/setter for keplr to prevent "Cannot assign to read only property 'keplr'"
+        try {
+          let keplrValue = undefined;
+          originalDefineProperty(window, 'keplr', {
+            get: function() { return keplrValue; },
+            set: function(val) { keplrValue = val; },
+            configurable: true,
+            enumerable: true
+          });
+        } catch (e) {
+          console.warn("Prevented crash on pre-defining window.keplr:", e);
+        }
+
+        Object.defineProperty = function(obj, prop, descriptor) {
+          if (obj === window && (prop === 'ethereum' || prop === 'keplr')) {
+            try {
+              return originalDefineProperty.apply(this, arguments);
+            } catch (e) {
+              console.warn(`Prevented crash on redefining window.${prop}:`, e);
+              try {
+                if (descriptor && 'value' in descriptor) {
+                  window[prop] = descriptor.value;
+                }
+              } catch (_) {}
+              return obj;
+            }
+          }
+          return originalDefineProperty.apply(this, arguments);
+        };
+
+        // Suppress any uncaught "Cannot redefine property" or "read only property" errors for wallet/extension globals
+        window.addEventListener('error', function(event) {
+          if (event.error && event.error.message && (
+            event.error.message.indexOf('ethereum') !== -1 ||
+            event.error.message.indexOf('keplr') !== -1 ||
+            event.error.message.indexOf('redefine property') !== -1 ||
+            event.error.message.indexOf('read only property') !== -1
+          )) {
+            console.warn("Caught and suppressed extension/wallet error:", event.error.message);
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }, true);
+
+        window.addEventListener('unhandledrejection', function(event) {
+          if (event.reason && event.reason.message && (
+            event.reason.message.indexOf('ethereum') !== -1 ||
+            event.reason.message.indexOf('keplr') !== -1 ||
+            event.reason.message.indexOf('redefine property') !== -1 ||
+            event.reason.message.indexOf('read only property') !== -1
+          )) {
+            console.warn("Caught and suppressed extension/wallet unhandled rejection:", event.reason.message);
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }, true);
+      })();
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>My Google AI Studio App</title>

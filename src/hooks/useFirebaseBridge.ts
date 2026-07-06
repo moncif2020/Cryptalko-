@@ -13,7 +13,7 @@ export function useFirebaseBridge() {
   const [roomId, setRoomId] = useState<string | null>(null);
   const [role, setRole] = useState<'host' | 'peer' | null>(null);
 
-  // --- Auto-Exit and 60-Second Reply Countdown States ---
+  // --- Auto-Exit and 5-Minute Reply Countdown States ---
   const [exitReason, setExitReason] = useState<'peer_left' | 'timeout' | null>(null);
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
 
@@ -552,7 +552,7 @@ export function useFirebaseBridge() {
     return () => unsubscribe();
   }, [roomId, showChat, role, clientId, encryptionKey]);
 
-  // --- 60-Second Reply Countdown Timer Effect ---
+  // --- 5-Minute Reply Countdown Timer Effect ---
   useEffect(() => {
     if (status !== 'locked' || chatMessages.length === 0) {
       setSecondsRemaining(null);
@@ -572,14 +572,14 @@ export function useFirebaseBridge() {
     const interval = setInterval(() => {
       const elapsedMs = Date.now() - lastMsg.createdAt;
       const elapsedSec = Math.floor(elapsedMs / 1000);
-      const remaining = 60 - elapsedSec;
+      const remaining = 300 - elapsedSec;
 
       if (remaining <= 0) {
         clearInterval(interval);
         setSecondsRemaining(0);
         
         // Timeout reached! Trigger self-kick and destroy
-        addLog('ERROR', 'انتهت مهلة الرد (60 ثانية) // Response timeout reached. Purging everything...');
+        addLog('ERROR', 'انتهت مهلة الرد (5 دقائق) // Response timeout reached. Purging everything...');
         leaveAndDestroyRoom('timeout');
       } else {
         setSecondsRemaining(remaining);
