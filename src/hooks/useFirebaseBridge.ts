@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   db, doc, setDoc, updateDoc, onSnapshot, collection, addDoc, query, orderBy, getDoc,
-  getDocs, deleteDoc, handleFirestoreError, OperationType
+  getDocs, deleteDoc, handleFirestoreError, OperationType, ensureAuth
 } from '../firebase';
 import { LogEntry, ChatMessage } from '../types';
 import { encryptString, encryptPayload, decryptPayload } from '../services/crypto';
@@ -12,6 +12,7 @@ export function useFirebaseBridge() {
   const [showChat, setShowChat] = useState(false);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [role, setRole] = useState<'host' | 'peer' | null>(null);
+  const [uid, setUid] = useState<string | null>(null);
 
   // --- Auto-Exit and 5-Minute Reply Countdown States ---
   const [exitReason, setExitReason] = useState<'peer_left' | 'timeout' | null>(null);
@@ -231,21 +232,27 @@ export function useFirebaseBridge() {
 
   // Host creates and advertises a new room
   const createAndHostRoom = useCallback(async () => {
-    const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-    setRoomId(newRoomId);
-    setRole('host');
-    setStatus('searching');
-    setShowChat(false);
-
-    addLog('INFO', `Initializing encrypted enclave room: ${newRoomId}`);
-    addLog('INFO', 'Performing cryptography stack diagnostics...');
-    addLog('SECURE', `Active Cipher: ${cipherAlgorithm} with ${derivationRounds} PBKDF2 rounds.`);
-    addLog('INFO', 'Broadcasting handshake package to decentralized peer relay...');
-
-    // Push room parameter to browser address bar quietly
-    window.history.pushState({}, '', '?room=' + newRoomId);
+    addLog('INFO', 'Initializing encrypted enclave room creation sequence...');
+    addLog('INFO', 'Authenticating secure session...');
 
     try {
+      const retrievedUid = await ensureAuth();
+      setUid(retrievedUid);
+
+      const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+      setRoomId(newRoomId);
+      setRole('host');
+      setStatus('searching');
+      setShowChat(false);
+
+      addLog('INFO', `Initializing encrypted enclave room: ${newRoomId}`);
+      addLog('INFO', 'Performing cryptography stack diagnostics...');
+      addLog('SECURE', `Active Cipher: ${cipherAlgorithm} with ${derivationRounds} PBKDF2 rounds.`);
+      addLog('INFO', 'Broadcasting handshake package to decentralized peer relay...');
+
+      // Push room parameter to browser address bar quietly
+      window.history.pushState({}, '', '?room=' + newRoomId);
+
       await setDoc(doc(db, 'rooms', newRoomId), {
         status: 'searching',
         encryptionKey,
@@ -254,6 +261,7 @@ export function useFirebaseBridge() {
         createdAt: Date.now(),
         peerConnected: false,
         hostClientId: clientId,
+        hostUid: retrievedUid,
         privacyEnclave: {
           autoDelete: false,
           visualShield: false,
@@ -272,13 +280,17 @@ export function useFirebaseBridge() {
 
   // Peer joins an existing room advertised by Host
   const joinRoom = useCallback(async (targetRoomId: string) => {
-    setRoomId(targetRoomId);
-    setStatus('searching');
-    setShowChat(false);
-
     addLog('INFO', `Attempting connection to remote enclave: ${targetRoomId}...`);
+    addLog('INFO', 'Authenticating secure session...');
 
     try {
+      const retrievedUid = await ensureAuth();
+      setUid(retrievedUid);
+
+      setRoomId(targetRoomId);
+      setStatus('searching');
+      setShowChat(false);
+
       const roomRef = doc(db, 'rooms', targetRoomId);
       const roomSnap = await getDoc(roomRef);
 
@@ -290,7 +302,7 @@ export function useFirebaseBridge() {
 
       const data = roomSnap.data();
       // Determine if this client is the original host
-      const isHost = data.hostClientId === clientId;
+      const isHost = data.hostClientId === clientId || data.hostUid === retrievedUid;
       setRole(isHost ? 'host' : 'peer');
 
       // Synchronize cipher state exactly from the host!
@@ -312,10 +324,15 @@ export function useFirebaseBridge() {
       addLog('SECURE', `Synced ${isHost ? 'local host' : 'remote host'} cipher stream: ${data.cipherAlgorithm} (${data.derivationRounds} PBKDF2 iterations).`);
 
       // Update room to signal connection confirmed
-      await updateDoc(roomRef, {
+      const updateData: any = {
         status: 'locked',
         peerConnected: true
-      });
+      };
+      if (!isHost) {
+        updateData.peerClientId = clientId;
+        updateData.peerUid = retrievedUid;
+      }
+      await updateDoc(roomRef, updateData);
       
       addLog('SUCCESS', 'Cryptographic negotiation complete. Handshake locked.');
     } catch (err: any) {
@@ -400,6 +417,7 @@ export function useFirebaseBridge() {
       await addDoc(collection(db, 'rooms', roomId, 'messages'), {
         senderId: role,
         clientId,
+        uid,
         text: plaintext,
         ciphertext,
         mediaType: mediaType || null,
@@ -413,7 +431,7 @@ export function useFirebaseBridge() {
       console.error(err);
       addLog('ERROR', 'Payload transmission failed.');
     }
-  }, [roomId, role, clientId, encryptionKey, cipherAlgorithm, isBluetoothMode, isBluetoothConnected, addLog]);
+  }, [roomId, role, clientId, uid, encryptionKey, cipherAlgorithm, isBluetoothMode, isBluetoothConnected, addLog]);
 
   // Retrieve room parameter from URL on startup
   const getRoomIdFromUrl = () => {
@@ -520,7 +538,7 @@ export function useFirebaseBridge() {
       const messagesList: ChatMessage[] = [];
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
-        const isMe = data.clientId ? data.clientId === clientId : data.senderId === role;
+        const isMe = (data.clientId ? data.clientId === clientId : data.senderId === role) || (data.uid ? data.uid === uid : false);
         
         let decryptedMediaPayload = '';
         if (data.mediaType && data.mediaPayload) {
@@ -550,7 +568,7 @@ export function useFirebaseBridge() {
     });
 
     return () => unsubscribe();
-  }, [roomId, showChat, role, clientId, encryptionKey]);
+  }, [roomId, showChat, role, clientId, uid, encryptionKey]);
 
   // --- 5-Minute Reply Countdown Timer Effect ---
   useEffect(() => {
@@ -636,6 +654,7 @@ export function useFirebaseBridge() {
               await addDoc(collection(db, 'rooms', roomId, 'messages'), {
                 senderId: role,
                 clientId,
+                uid,
                 text: item.text || '',
                 ciphertext,
                 mediaType: item.mediaType || null,
@@ -660,7 +679,7 @@ export function useFirebaseBridge() {
         syncPayloads();
       }
     }
-  }, [isOnline, roomId, status, role, clientId, encryptionKey, cipherAlgorithm, addLog]);
+  }, [isOnline, roomId, status, role, clientId, uid, encryptionKey, cipherAlgorithm, addLog]);
 
   // Periodically generate simulated background security logs if connected
   useEffect(() => {
@@ -689,6 +708,7 @@ export function useFirebaseBridge() {
     setRoomId,
     role,
     setRole,
+    uid,
     encryptionKey,
     setEncryptionKey,
     cipherAlgorithm,
